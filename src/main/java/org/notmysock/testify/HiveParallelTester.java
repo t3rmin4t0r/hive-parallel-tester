@@ -63,6 +63,7 @@ public class HiveParallelTester extends Configured implements Tool {
         options.addOption("o", "output", true, "output");
         options.addOption("m", "modules", true, "modules");
         options.addOption("p", "pertask", true, "pertask");
+        options.addOption("c", "count", true, "count");
         options.addOption("r", "report", true, "report");
         CommandLine line = parser.parse(options, remainingArgs);
 
@@ -73,7 +74,7 @@ public class HiveParallelTester extends Configured implements Tool {
         }
         
         File hivedir = new File(line.getOptionValue("hivedir"));
-        File antjar = new File("ant-bin.jar");
+        File antjar = new File("ant-bin.zip");
         
         int pertask = 8;
         
@@ -93,9 +94,15 @@ public class HiveParallelTester extends Configured implements Tool {
         CommandLineGenerator generator = new CommandLineGenerator(hivedir, modules);
         String[] commands = generator.getCommands(pertask, pertask);
         
-        if(commands.length != 0) {
-        	for(String c: commands) {
-        		System.out.println(c);
+        if(line.hasOption("count")) {
+        	int count = Integer.parseInt(line.getOptionValue("c"));
+        	String[] old = commands;
+        	if(old.length > count) {
+        		commands = new String[count];
+        		int i = 0;
+        		for(String s: commands) {
+        			commands[i++] = s;
+        		}
         	}
         }
         File hivetar = makeTar(hivedir);
