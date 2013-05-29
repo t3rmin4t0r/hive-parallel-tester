@@ -202,7 +202,7 @@ public class HiveParallelTester extends Configured implements Tool {
 		while((line = linereader.readLine()) != null) {
 			i++;
 			if(!line.contains("\tOK")) {
-				j = 0;
+				j++;
 				System.err.println(line);
 			}
 		}
