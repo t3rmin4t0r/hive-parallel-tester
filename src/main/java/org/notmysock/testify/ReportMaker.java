@@ -32,11 +32,10 @@ public class ReportMaker {
 	
 	private File downloadAll(Path inputdir) throws Exception {
 		 File tempdir = Files.createTempDir();
-		 RemoteIterator<LocatedFileStatus> ritr = fs.listFiles(inputdir, false);
-		 int i = 0;
-		 while(ritr.hasNext()) {
-			 FileStatus fd = ritr.next();
-			 Path dst = new Path(new Path(tempdir.getAbsolutePath()),(i++)+".xml");
+		 FileStatus[] files = fs.listStatus(inputdir);
+		 for(int i = 0; i < files.length; i++) {
+			 FileStatus fd = files[i];
+			 Path dst = new Path(new Path(tempdir.getAbsolutePath()),i+".xml");
 			 fs.copyToLocalFile(false, fd.getPath(), dst);
 		 }
 		 return tempdir;
