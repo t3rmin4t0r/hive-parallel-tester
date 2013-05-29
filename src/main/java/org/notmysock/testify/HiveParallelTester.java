@@ -9,10 +9,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.SequenceInputStream;
 import java.math.BigInteger;
 import java.net.URI;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Random;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
@@ -29,6 +32,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.LongWritable;
@@ -64,14 +68,15 @@ public class HiveParallelTester extends Configured implements Tool {
         options.addOption("m", "modules", true, "modules");
         options.addOption("p", "pertask", true, "pertask");
         options.addOption("c", "count", true, "count");
-        options.addOption("r", "report", true, "report");
+        options.addOption("r", "reportdir", true, "reportdir");
         CommandLine line = parser.parse(options, remainingArgs);
 
-        if(!(line.hasOption("hivedir") || line.hasOption("output"))) {
+        if(!(line.hasOption("hivedir"))) {
           HelpFormatter f = new HelpFormatter();
           f.printHelp("HiveParalleTester", options);
           return 1;
         }
+        
         
         File hivedir = new File(line.getOptionValue("hivedir"));
         File antjar = new File("ant-bin.zip");
@@ -98,10 +103,9 @@ public class HiveParallelTester extends Configured implements Tool {
         	int count = Integer.parseInt(line.getOptionValue("c"));
         	String[] old = commands;
         	if(old.length > count) {
-        		commands = new String[count];
-        		int i = 0;
-        		for(String s: commands) {
-        			commands[i++] = s;
+        		commands = new String[count];        		
+        		for(int i = 0; i < count; i++) {
+        			commands[i] = old[i];
         		}
         	}
         }
@@ -111,6 +115,8 @@ public class HiveParallelTester extends Configured implements Tool {
         conf.setInt("mapred.task.timeout",0);
         conf.setInt("mapreduce.task.timeout",0);
         conf.setInt("mapreduce.map.maxattempts", 1);
+        conf.setInt("mapred.map.max.attempts", 1);
+        conf.setInt("mapred.job.map.memory.mb", 4096);
 
         Path[] cacheFiles = new Path[] {
         		copyToHDFS(antjar), 
@@ -126,7 +132,11 @@ public class HiveParallelTester extends Configured implements Tool {
 
         
         Path in = genInput(commands);
-        Path out = new Path(line.getOptionValue("output"));
+        long epoch = System.currentTimeMillis() / 1000;
+		Path out = new Path("/tmp/hive-test-out-" + epoch);
+		if(line.hasOption("output")) {
+			out = new Path(line.getOptionValue("output"));
+		}
         
         
         Job job = new Job(conf, "hive-parallel-test");
@@ -155,14 +165,45 @@ public class HiveParallelTester extends Configured implements Tool {
         Path reports = new Path(out, "reports");
         
         ReportMaker reporter = new ReportMaker(fs);
-        reporter.create(reports, new File("report/"));
+        String reportdir = "report/";
+        if(line.hasOption("reportdir")) {
+        	reportdir = line.getOptionValue("reportdir");
+        }
+        reporter.create(reports, new File(reportdir));
         
         fs.delete(in, false);
         for(Path tmpjar: cacheFiles) {
         	fs.delete(tmpjar, false);
         }
         
+        System.out.println("Reports generated in: "+reportdir);
+        System.out.println("Raw output in HDFS: " + out.toString());
+        
+        parseStatusFiles(fs, out);
+        
         return 0;
+    }
+    
+    private void parseStatusFiles(FileSystem fs, Path out) 
+    		throws IOException {
+    	FileStatus[] files = fs.listStatus(out);
+        
+        ArrayList<InputStream> streams = new ArrayList<InputStream>();
+        for(FileStatus f: files) {
+        	if(f.getPath().getName().startsWith("part-m-")) {
+        		streams.add(fs.open(f.getPath()));
+        	}
+        }
+        
+		BufferedReader linereader = new BufferedReader(new InputStreamReader(
+				new SequenceInputStream(Collections.enumeration(streams))));
+        
+		String line = null;
+		while((line = linereader.readLine()) != null) {
+			if(!line.contains("\tOK")) {
+				System.err.println(line);
+			}
+		}
     }
     
     private URI pathToLink(Path in, String symlink) throws Exception {
