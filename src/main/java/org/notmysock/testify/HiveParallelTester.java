@@ -197,13 +197,16 @@ public class HiveParallelTester extends Configured implements Tool {
         
 		BufferedReader linereader = new BufferedReader(new InputStreamReader(
 				new SequenceInputStream(Collections.enumeration(streams))));
-        
+       		int i = 0, j =0; 
 		String line = null;
 		while((line = linereader.readLine()) != null) {
+			i++;
 			if(!line.contains("\tOK")) {
+				j = 0;
 				System.err.println(line);
 			}
 		}
+		System.out.printf("Ran %d tasks (%d errors)\n", i, j);
     }
     
     private URI pathToLink(Path in, String symlink) throws Exception {
@@ -336,7 +339,7 @@ public class HiveParallelTester extends Configured implements Tool {
 				throw new InterruptedException(
 						"Process failed with status code " + status + "\n"
 								+ err);
-			}*/			
+			}*/
 			context.write(command, status == 0 ? "OK" : "FAIL");
 		}
 	}
