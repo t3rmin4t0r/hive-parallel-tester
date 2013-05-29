@@ -15,13 +15,13 @@ public class CommandLineGenerator {
 	private final File hivedir;
 	private HashMap<String,ArrayList<String>> tests = new HashMap<String,ArrayList<String>>();
 	private ArrayList<String> queries = new ArrayList<String>();
-	private String[] drivers = new String[] { "TestParse.class",
-			"TestParseNegative.class", "TestCliDriver.class",
-			/*"TestBeeLineDriver.class",*/ "TestMinimrCliDriver.class",
-			"TestNegativeMinimrCliDriver.class", "TestNegativeCliDriver.class", };
-	private String[] excluded = new String[] { "TestSerDe.class",
-			"TestHiveMetaStore.class", "TestBeeLineDriver.class",
-			"TestHiveServer2Concurrency.class", };
+	private String[] drivers = new String[] { "TestParse.java",
+			"TestParseNegative.java", "TestCliDriver.java",
+			/*"TestBeeLineDriver.java",*/ "TestMinimrCliDriver.java",
+			"TestNegativeMinimrCliDriver.java", "TestNegativeCliDriver.java", };
+	private String[] excluded = new String[] { "TestSerDe.java",
+			"TestHiveMetaStore.java", "TestBeeLineDriver.java",
+			"TestHiveServer2Concurrency.java", };
 
 	public static class FileWalker {
 		private Pattern fnmatch;
