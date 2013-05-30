@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -119,7 +120,8 @@ public class CommandLineGenerator {
 		ArrayList<String> temp = new ArrayList<String>();
 		String ant = "ant test $TESTARGS";
 		for(String module: tests.keySet()) {
-			ArrayList<String> moduletests = tests.get(module); 
+			ArrayList<String> moduletests = tests.get(module);
+			Collections.shuffle(moduletests);
 			String separator = ".class,**/";
 			if("hcatalog".equals(module)) {
 				separator = ".java,**/";
@@ -137,8 +139,9 @@ public class CommandLineGenerator {
 						join(temp, separator), module));
 			}
 		}
+		Collections.shuffle(queries);
 		for(int i = 0; i < drivers.length; i++) {
-			temp.clear();
+			temp.clear();			
 			for(int j = 0; j < queries.size(); j++) {
 				temp.add(queries.get(j));
 				if (((j + 1) % queriesPerLine) == 0) {

@@ -88,7 +88,7 @@ public class HiveParallelTester extends Configured implements Tool {
         File hivedir = new File(line.getOptionValue("hivedir"));
         File antjar = new File("ant-bin.zip");
         
-        int pertask = 8;
+        int pertask = 64;
         
         if(line.hasOption("pertask")) {
         	pertask = Integer.parseInt(line.getOptionValue("pertask")); 
@@ -304,6 +304,11 @@ public class HiveParallelTester extends Configured implements Tool {
 			out.writeBytes(s + "\n");
 		}
 		out.close();
+		FileOutputStream debug = new FileOutputStream(new File("commands.txt"));
+		for (String s : commands) {
+			debug.write((s + "\n").getBytes());
+		}
+		debug.close();
 		return in;
 	}
 
