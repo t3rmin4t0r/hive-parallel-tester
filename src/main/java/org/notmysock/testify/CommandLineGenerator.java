@@ -142,19 +142,20 @@ public class CommandLineGenerator {
 		Collections.shuffle(queries);
 		for(int i = 0; i < drivers.length; i++) {
 			temp.clear();			
+			String driver = drivers[i].replace(".java","");
 			for(int j = 0; j < queries.size(); j++) {
 				temp.add(queries.get(j));
 				if (((j + 1) % queriesPerLine) == 0) {
 					commands.add(String.format(ant
 							+ "-Dmodule=ql -Dtestcase=%s -Dqfile_regex='(%s)'",
-							drivers[i], join(temp, "|")));
+							driver, join(temp, "|")));
 					temp.clear();
 				}
 			}
 			if (temp.size() != 0) {
 				commands.add(String.format(ant
 						+ "-Dmodule=ql -Dtestcase=%s -Dqfile_regex='(%s)'",
-						drivers[i], join(temp, "|")));
+						driver, join(temp, "|")));
 			}
 		}
 		//return new String[]{commands.get(0),commands.get(1),commands.get(2)};
