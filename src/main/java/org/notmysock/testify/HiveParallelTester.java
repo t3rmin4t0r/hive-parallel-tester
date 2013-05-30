@@ -15,8 +15,10 @@ import java.net.URI;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Random;
+import java.util.concurrent.Executors;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
@@ -28,6 +30,9 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.input.Tailer;
+import org.apache.commons.io.input.TailerListener;
+import org.apache.commons.io.input.TailerListenerAdapter;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
@@ -69,6 +74,8 @@ public class HiveParallelTester extends Configured implements Tool {
         options.addOption("p", "pertask", true, "pertask");
         options.addOption("c", "count", true, "count");
         options.addOption("r", "reportdir", true, "reportdir");
+        options.addOption("m2", "maven2", true, "maven2");
+        options.addOption("i2", "ivy2", true, "ivy2");
         CommandLine line = parser.parse(options, remainingArgs);
 
         if(!(line.hasOption("hivedir"))) {
@@ -109,7 +116,25 @@ public class HiveParallelTester extends Configured implements Tool {
         		}
         	}
         }
-        File hivetar = makeTar(hivedir);
+        File hivetar = makeTar(hivedir, new File("hive-build.tar"));
+        File ivytar = null;
+        File maventar = null;
+        if(line.hasOption("ivy2")) {
+            ivytar = makeTar(new File(line.getOptionValue("ivy2")), new File("ivy2.tar"));	
+        } else {
+        	File ivy2 = new File(System.getProperty("user.home"),".ivy2");
+        	if(ivy2.exists() && ivy2.isDirectory()) {
+            	ivytar = makeTar(ivy2, new File("ivy2.tar"));	
+        	}
+        }
+        if(line.hasOption("maven2")) {
+        	maventar = makeTar(new File(line.getOptionValue("maven2")), new File("maven2.tar"));
+        } else {
+        	File maven2 = new File(System.getProperty("user.home"),".maven2");
+        	if(maven2.exists() && maven2.isDirectory()) {
+            	maventar = makeTar(maven2, new File("maven2.tar"));	
+        	}
+        }
 
         Configuration conf = getConf(); 
         conf.setInt("mapred.task.timeout",0);
@@ -117,17 +142,32 @@ public class HiveParallelTester extends Configured implements Tool {
         conf.setInt("mapreduce.map.maxattempts", 1);
         conf.setInt("mapred.map.max.attempts", 1);
         conf.setInt("mapred.job.map.memory.mb", 4096);
-
-        Path[] cacheFiles = new Path[] {
+        
+        ArrayList<Path> cacheFiles = new ArrayList<Path>();
+        
+        cacheFiles.addAll(Arrays.asList(new Path[] {
         		copyToHDFS(antjar), 
         		copyToHDFS(hivetar),
         		copyToHDFS(new File("epilogue.sh")),
         		copyToHDFS(new File("prologue.sh"))
-        };
-        DistributedCache.addCacheArchive(pathToLink(cacheFiles[0],"ant"), conf);
-        DistributedCache.addCacheFile(pathToLink(cacheFiles[1],"hive-build.tar"), conf);
-        DistributedCache.addCacheFile(pathToLink(cacheFiles[2],"epilogue.sh"), conf);
-        DistributedCache.addCacheFile(pathToLink(cacheFiles[3],"prologue.sh"), conf);
+        }));
+        
+        DistributedCache.addCacheArchive(pathToLink(cacheFiles.get(0),"ant"), conf);
+        DistributedCache.addCacheFile(pathToLink(cacheFiles.get(1),"hive-build.tar"), conf);
+        DistributedCache.addCacheFile(pathToLink(cacheFiles.get(2),"epilogue.sh"), conf);
+        DistributedCache.addCacheFile(pathToLink(cacheFiles.get(3),"prologue.sh"), conf);
+        
+        if(ivytar != null) {
+        	Path cachefile = copyToHDFS(ivytar);
+        	cacheFiles.add(cachefile);
+        	DistributedCache.addCacheArchive(pathToLink(cachefile,".ivy2"), conf);
+        }
+        if(maventar != null) {
+        	Path cachefile = copyToHDFS(maventar);
+        	cacheFiles.add(cachefile);
+        	DistributedCache.addCacheArchive(pathToLink(cachefile,".m2"), conf);
+        }
+
         DistributedCache.createSymlink(conf);
 
         
@@ -228,19 +268,18 @@ public class HiveParallelTester extends Configured implements Tool {
         return sb.toString();
     }
     
-    public File makeTar(File dir) throws Exception {
-    	File hivetar = new File("hive-build.tar");
-    	String cmd = String.format("tar -cf %s .", hivetar.getCanonicalPath());
-    	if(hivetar.exists()) {
-    		cmd = String.format("tar -uf %s .", hivetar.getCanonicalPath());
+    public File makeTar(File dir, File tar) throws Exception {
+    	String cmd = String.format("tar -cf %s .", tar.getCanonicalPath());
+    	if(tar.exists()) {
+    		cmd = String.format("tar -uf %s .", tar.getCanonicalPath());
     	}    	
     	Runtime runtime = Runtime.getRuntime();
     	Process p = runtime.exec(cmd, null, dir);
     	int status = p.waitFor();
     	if(status != 0) {
-    		throw new IOException("Could not create hive-build.tar from: "+cmd+" in "+dir.getPath());
+    		throw new IOException("Could not create "+tar.getName()+" from: "+cmd+" in "+dir.getPath());
     	}
-		return hivetar;
+		return tar;
     } 
     
 	public Path copyToHDFS(File jar) throws Exception {
@@ -321,7 +360,16 @@ public class HiveParallelTester extends Configured implements Tool {
 			envp[0]="PATH="+System.getenv("PATH");
 			envp[1]="JAVA_HOME="+System.getenv("JAVA_HOME");
 			Process p = Runtime.getRuntime().exec(cmd, envp,new File("."));
+			TailerListener echoer = new TailerListenerAdapter() {
+				@Override
+				public void handle(String line) {
+					System.out.println(line);
+				}
+			};
+			Tailer tail = Tailer.create(new File("stdout"), echoer);
+			Executors.newSingleThreadExecutor().execute(tail);
 			int status = p.waitFor();
+			tail.stop();
 			
 			copyFile(mos, new File("stdout"), "stdout");
 			copyFile(mos, new File("exec.sh"), "exec.sh");
