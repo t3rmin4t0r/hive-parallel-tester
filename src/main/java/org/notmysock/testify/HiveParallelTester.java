@@ -139,8 +139,10 @@ public class HiveParallelTester extends Configured implements Tool {
         Configuration conf = getConf(); 
         conf.setInt("mapred.task.timeout",0);
         conf.setInt("mapreduce.task.timeout",0);
+/*
         conf.setInt("mapreduce.map.maxattempts", 1);
         conf.setInt("mapred.map.max.attempts", 1);
+*/
         conf.setInt("mapred.job.map.memory.mb", 4096);
         
         ArrayList<Path> cacheFiles = new ArrayList<Path>();
@@ -160,12 +162,12 @@ public class HiveParallelTester extends Configured implements Tool {
         if(ivytar != null) {
         	Path cachefile = copyToHDFS(ivytar);
         	cacheFiles.add(cachefile);
-        	DistributedCache.addCacheArchive(pathToLink(cachefile,".ivy2"), conf);
+        	DistributedCache.addCacheFile(pathToLink(cachefile,"ivy2.tar"), conf);
         }
         if(maventar != null) {
         	Path cachefile = copyToHDFS(maventar);
         	cacheFiles.add(cachefile);
-        	DistributedCache.addCacheArchive(pathToLink(cachefile,".m2"), conf);
+        	DistributedCache.addCacheFile(pathToLink(cachefile,"m2.tar"), conf);
         }
 
         DistributedCache.createSymlink(conf);
@@ -374,7 +376,6 @@ public class HiveParallelTester extends Configured implements Tool {
 			Tailer tail = Tailer.create(new File("stdout"), echoer);
 			Executors.newSingleThreadExecutor().execute(tail);
 			int status = p.waitFor();
-			tail.stop();
 			
 			copyFile(mos, new File("stdout"), "stdout");
 			copyFile(mos, new File("exec.sh"), "exec.sh");
@@ -394,6 +395,7 @@ public class HiveParallelTester extends Configured implements Tool {
 								+ err);
 			}*/
 			context.write(command, status == 0 ? "OK" : "FAIL");
+			tail.stop();
 		}
 	}
 }
